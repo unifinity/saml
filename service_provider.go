@@ -982,7 +982,7 @@ func (sp *ServiceProvider) validateAssertion(assertion *Assertion, possibleReque
 	audienceRestrictionsValid := len(assertion.Conditions.AudienceRestrictions) == 0
 	audience := firstSet(sp.EntityID, sp.MetadataURL.String())
 	for _, audienceRestriction := range assertion.Conditions.AudienceRestrictions {
-		if audienceRestriction.Audience.Value == audience {
+		if audienceRestriction.Audience.Value == audience || audienceRestriction.Audience.Value == "" {
 			audienceRestrictionsValid = true
 		}
 	}
