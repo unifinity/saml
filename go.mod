@@ -1,4 +1,4 @@
-module github.com/mmmcorp/saml
+module github.com/unifinity/saml
 
 go 1.13
 

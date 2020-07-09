@@ -11,8 +11,8 @@ import (
 
 	"github.com/zenazn/goji/web"
 
-	"github.com/mmmcorp/saml"
-	"github.com/mmmcorp/saml/logger"
+	"github.com/unifinity/saml"
+	"github.com/unifinity/saml/logger"
 )
 
 // Options represent the parameters to New() for creating a new IDP server
