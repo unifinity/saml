@@ -19,6 +19,7 @@ type CookieSessionProvider struct {
 	Domain   string
 	HTTPOnly bool
 	Secure   bool
+	SameSite http.SameSite
 	MaxAge   time.Duration
 	Codec    SessionCodec
 }
@@ -49,6 +50,7 @@ func (c CookieSessionProvider) CreateSession(w http.ResponseWriter, r *http.Requ
 		MaxAge:   int(c.MaxAge.Seconds()),
 		HttpOnly: c.HTTPOnly,
 		Secure:   c.Secure || r.URL.Scheme == "https",
+		SameSite: c.SameSite,
 		Path:     "/",
 	})
 	return nil
@@ -57,7 +59,13 @@ func (c CookieSessionProvider) CreateSession(w http.ResponseWriter, r *http.Requ
 // DeleteSession is called to modify the response such that it removed the current
 // session, e.g. by deleting a cookie.
 func (c CookieSessionProvider) DeleteSession(w http.ResponseWriter, r *http.Request) error {
+	// Cookies should not have the port attached to them so strip it off
+	if domain, _, err := net.SplitHostPort(c.Domain); err == nil {
+		c.Domain = domain
+	}
+
 	cookie, err := r.Cookie(c.Name)
+
 	if err == http.ErrNoCookie {
 		return nil
 	}
@@ -68,6 +76,7 @@ func (c CookieSessionProvider) DeleteSession(w http.ResponseWriter, r *http.Requ
 	cookie.Value = ""
 	cookie.Expires = time.Unix(1, 0) // past time as close to epoch as possible, but not zero time.Time{}
 	cookie.Path = "/"
+	cookie.Domain = c.Domain
 	http.SetCookie(w, cookie)
 	return nil
 }
