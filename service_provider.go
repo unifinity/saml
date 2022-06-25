@@ -72,6 +72,9 @@ type ServiceProvider struct {
 	Certificate   *x509.Certificate
 	Intermediates []*x509.Certificate
 
+	// HTTPClient to use during SAML artifact resolution
+	HTTPClient *http.Client
+
 	// MetadataURL is the full URL to the metadata endpoint on this host,
 	// i.e. https://example.com/saml/metadata
 	MetadataURL url.URL
@@ -99,6 +102,10 @@ type ServiceProvider struct {
 	// has a SSO session at the IdP.
 	ForceAuthn *bool
 
+	// RequestedAuthnContext allow you to specify the requested authentication
+	// context in authentication requests
+	RequestedAuthnContext *RequestedAuthnContext
+
 	// AllowIdpInitiated
 	AllowIDPInitiated bool
 
@@ -111,6 +118,10 @@ type ServiceProvider struct {
 
 	// SignatureMethod, if non-empty, authentication requests will be signed
 	SignatureMethod string
+
+	// LogoutBindings specify the bindings available for SLO endpoint. If empty,
+	// HTTP-POST binding is used.
+	LogoutBindings []string
 }
 
 // MaxIssueDelay is the longest allowed time between when a SAML assertion is
@@ -178,6 +189,15 @@ func (sp *ServiceProvider) Metadata() *EntityDescriptor {
 		}
 	}
 
+	var sloEndpoints []Endpoint
+	for _, binding := range sp.LogoutBindings {
+		sloEndpoints = append(sloEndpoints, Endpoint{
+			Binding:          binding,
+			Location:         sp.SloURL.String(),
+			ResponseLocation: sp.SloURL.String(),
+		})
+	}
+
 	return &EntityDescriptor{
 		EntityID:   firstSet(sp.EntityID, sp.MetadataURL.String()),
 		ValidUntil: validUntil,
@@ -190,13 +210,8 @@ func (sp *ServiceProvider) Metadata() *EntityDescriptor {
 						KeyDescriptors:             keyDescriptors,
 						ValidUntil:                 &validUntil,
 					},
-					SingleLogoutServices: []Endpoint{
-						{
-							Binding:          HTTPPostBinding,
-							Location:         sp.SloURL.String(),
-							ResponseLocation: sp.SloURL.String(),
-						},
-					},
+					SingleLogoutServices: sloEndpoints,
+					NameIDFormats:        []NameIDFormat{sp.AuthnNameIDFormat},
 				},
 				AuthnRequestsSigned:  &authnRequestsSigned,
 				WantAssertionsSigned: &wantAssertionsSigned,
@@ -404,7 +419,8 @@ func (sp *ServiceProvider) MakeAuthenticationRequest(idpURL string, binding stri
 			// urn:oasis:names:tc:SAML:2.0:nameid-format:transient
 			Format: &nameIDFormat,
 		},
-		ForceAuthn: sp.ForceAuthn,
+		ForceAuthn:            sp.ForceAuthn,
+		RequestedAuthnContext: sp.RequestedAuthnContext,
 	}
 	// We don't need to sign the XML document if the IDP uses HTTP-Redirect binding
 	if len(sp.SignatureMethod) > 0 && binding == HTTPPostBinding {
@@ -629,7 +645,11 @@ func (sp *ServiceProvider) ParseResponse(req *http.Request, possibleRequestIDs [
 
 		var requestBuffer bytes.Buffer
 		doc.WriteTo(&requestBuffer)
-		response, err := http.Post(sp.GetArtifactBindingLocation(SOAPBinding), "text/xml", &requestBuffer)
+		client := sp.HTTPClient
+		if client == nil {
+			client = http.DefaultClient
+		}
+		response, err := client.Post(sp.GetArtifactBindingLocation(SOAPBinding), "text/xml", &requestBuffer)
 		if err != nil {
 			retErr.PrivateErr = fmt.Errorf("Error during artifact resolution: %s", err)
 			return nil, retErr
