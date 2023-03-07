@@ -9,6 +9,6 @@ require (
 	github.com/mattermost/xml-roundtrip-validator v0.1.0
 	github.com/unifinity/saml v0.0.0-00010101000000-000000000000
 	github.com/zenazn/goji v1.0.1
-	golang.org/x/crypto v0.0.0-20211215153901-e495a2d5b3d3
+	golang.org/x/crypto v0.1.0
 	gotest.tools v2.2.0+incompatible
 )
